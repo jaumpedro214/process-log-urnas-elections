@@ -23,7 +23,7 @@ def download_file():
 
     uf_turno = turnos_uf_queue.get()
     url = BASE_URL.format(*uf_turno)
-    path = os.path.join('data', f'{uf_turno[0]}_{uf_turno[1]}.zip')
+    path = os.path.join('data', 'logs', f'{uf_turno[0]}_{uf_turno[1]}.zip')
 
     print(f'Downloading {url} to {path}')
 
@@ -49,12 +49,30 @@ def download_file():
     # and extract the .logjez files
     for file in files:
         if file.endswith('.logjez'):
-            os.system(f'7z e {path[:-4]}/{file} -o{path[:-4]}/logs/{file[:-7]} -y -sdel')
+            # Extract the .logjez file
+            # and rename it to .csv
+            filename=file[:-7]
+            os.system(
+                f'7z e {path[:-4]}/{file} -y -o{path[:-4]}/{filename}'
+            )
+            os.system(
+                f'mv {path[:-4]}/{filename}/logd.dat {path[:-4]}/{filename}.csv'
+            )
+            os.system(
+                f'rm -r {path[:-4]}/{filename}'
+            )
+            
+    os.system(f'chmod 777 -R {path[:-4]}')
+    os.system(f'rm {path[:-4]}/*.logjez')
+
 
 if __name__ == "__main__":
 
     for uf_br, turno in product(UFS_BR, TURNOS):
         turnos_uf_queue.put((turno, uf_br))
+
+    download_file()
+    exit(0)
 
     for i in range(NUM_TRHEADS):
         worker = threading.Thread(
