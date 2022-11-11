@@ -61,7 +61,7 @@ def download_file():
             os.system(
                 f'rm -r {path[:-4]}/{filename}'
             )
-            
+
     os.system(f'chmod 777 -R {path[:-4]}')
     os.system(f'rm {path[:-4]}/*.logjez')
 
@@ -70,9 +70,6 @@ if __name__ == "__main__":
 
     for uf_br, turno in product(UFS_BR, TURNOS):
         turnos_uf_queue.put((turno, uf_br))
-
-    download_file()
-    exit(0)
 
     for i in range(NUM_TRHEADS):
         worker = threading.Thread(
