@@ -7,7 +7,7 @@ SPARK_MASTER_URL = "spark://spark:7077"
 SCHEMA = StructType([
     StructField("datetime", TimestampType(), True),
     StructField("operation_label", StringType(), True),
-    StructField("log_id", StringType(), True),
+    StructField("some_id", StringType(), True),
     StructField("operation_label_2", StringType(), True),
     StructField("operation", StringType(), True),
     StructField("operation_id", StringType(), True),
@@ -18,7 +18,7 @@ spark = (
     SparkSession.builder
     .master(SPARK_MASTER_URL)
     .config("spark.executor.memory", "4g")
-    .appName("1st Process logs")
+    .appName("Convert logs to parquet")
     .getOrCreate()
 )
 # Reduce number of shuffle partitions
@@ -38,7 +38,7 @@ def process_logs_from_dir( directory ):
 
     dir_name = directory.split('/')[-1]
     turno, uf = dir_name.split('_')
-    
+
     df_logs = (
         spark
         .read
@@ -54,9 +54,15 @@ def process_logs_from_dir( directory ):
     # Add UF and Turno columns
     df_logs = df_logs.withColumn('uf', F.lit(uf))
     df_logs = df_logs.withColumn('turno', F.lit(turno))
+    # Add input file name column
+    df_logs = df_logs.withColumn('log_file_name', F.input_file_name())
 
     # Convert to parquet
-    df_logs.write.mode('overwrite').parquet(f'/data/parquet/{dir_name}')
+    df_logs\
+        .write\
+        .mode("overwrite")\
+        .option("encoding", "ISO-8859-1")\
+        .parquet(f'/data/parquet/{dir_name}')
 
 def process_all_logs():
     folders = os.listdir(BASE_PATH)
