@@ -43,7 +43,6 @@ def extract_metadata_from_log( file ):
         .option("encoding", "ISO-8859-1")\
         .schema(SCHEMA)\
         .load(file)\
-        .limit(1000)
         
     df_metadata = (
         df_logs
@@ -58,8 +57,6 @@ def extract_metadata_from_log( file ):
         )
     )
 
-    df_metadata.show(30, False)
-
     regex_patterns = {
         "modelo_urna": "Modelo de Urna: (.*)",
         "municipio": "Município: ([0-9]+)",
@@ -70,11 +67,8 @@ def extract_metadata_from_log( file ):
     for key, value in regex_patterns.items():
         df_metadata = df_metadata.withColumn(key, F.regexp_extract(F.col("operation"), value, 1))
 
-    df_metadata.show(30, False)
 
-    # Get the first non-null value for each column
-    # group by turno, uf, log_file_name
-    
+    # Get non-null values of each column
     df_metadata = (
         df_metadata
         .groupBy("turno", "uf", "log_file_name")
