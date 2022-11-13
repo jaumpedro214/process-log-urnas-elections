@@ -39,7 +39,7 @@ spark = (
     SparkSession.builder
     .master(SPARK_MASTER_URL)
     .config("spark.executor.memory", "4g")
-    .appName("Extract logs metadata")
+    .appName("Extract votes from logs")
     .getOrCreate()
 )
 # Reduce number of shuffle partitions
@@ -134,6 +134,14 @@ if __name__ == "__main__":
         .filter(
             F.col("number_of_operations_in_vote") >= MINIMAL_OPERATION_COUNT
         )
+    )
+
+    # Remove columns that are not needed
+    df_full_logs = (
+        df_full_logs
+        .drop("maker")
+        .drop("number_of_operations_in_vote")
+        .drop("log_file_name")
     )
 
 
