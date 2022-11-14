@@ -111,6 +111,13 @@ if __name__ == "__main__":
     df_votos = add_operation_type_label(df_votos)
 
     OPERATIONS_TYPES = ['DIGITACAO', 'BIOMETRIA', 'VOTO']
+    BIOMETRIA_TENTATIVAS = [
+            'Solicita digital. Tentativa [1] de [4]',
+            'Solicita digital. Tentativa [2] de [4]',
+            'Solicita digital. Tentativa [3] de [4]',
+            'Solicita digital. Tentativa [4] de [4]',
+            'Solicitação de dado pessoal do eleitor para habilitação manual'
+    ]
 
     df_votos = (
         df_votos
@@ -118,7 +125,16 @@ if __name__ == "__main__":
         .agg(
             # Metrics
             ## Number of operations in BIOMETRIA
-            F.count(F.when(F.col("operation_type") == 'BIOMETRIA', 1)).alias('tentativas_biometria'),
+            F.count(
+                F.when(F.col("operation").like("Solicita%"),1)
+            ).alias('tentativas_biometria'),
+
+            ## Success biometria
+            F.min(
+                F.when(
+                    F.col("operation")=="Solicitação de dado pessoal do eleitor para habilitação manual",0
+                ).otherwise(1)
+            ).alias('sucesso_biometria'),
 
             ## Sum delta time for each operation type
             *[ 
@@ -136,17 +152,15 @@ if __name__ == "__main__":
             F.first(F.col("modelo_urna"), True).alias("modelo_urna"),
             F.first(F.col("municipio"), True).alias("municipio"),
         )
+        # make sucesso_biometria NULL if there is no biometria
+        .withColumn(
+            "sucesso_biometria", 
+            F.when(F.col("tentativas_biometria") == 0, None).otherwise(F.col("sucesso_biometria"))
+        )
         .withColumn(
             "tempo_total", 
             F.col("tempo_digitacao") + F.col("tempo_biometria") + F.col("tempo_voto")
         )
-        .withColumn(
-            "tentativas_biometria",
-            F.col("tentativas_biometria") - 1
-        )
-        .withColumn(
-            "sucesso_biometria", F.when(F.col("tentativas_biometria") < 5, 1).otherwise(0)
-        )   
     )
 
     # Rename columns, change types and save to parquet
