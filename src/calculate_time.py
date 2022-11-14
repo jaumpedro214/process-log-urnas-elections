@@ -38,7 +38,7 @@ def extract_delta_time(df, time_col, partition_cols):
     )
 
 def add_operation_type_label(df):
-    """Add a column with a label for each
+    """Add a column with a label for each operation type
 
     Args:
         df (Spark DataFrame): DataFrame with the operations
@@ -66,6 +66,12 @@ def add_operation_type_label(df):
     ]
 
     # Create a when condition for each operation
+    
+    # IF operation in list1 THEN label1
+    # IF operation in list2 THEN label2
+    # ...
+    # ELSE labelN
+
     when_clause = F.when(
         F.col("operation").isin(OPERATIONS[0][1]), OPERATIONS[0][0]
     )
@@ -91,11 +97,7 @@ if __name__ == "__main__":
         StructField("vote_local_id", LongType(), True),
 
         StructField("datetime", TimestampType(), True),
-        StructField("operation_label", StringType(), True),
-        StructField("some_id", StringType(), True),
-        StructField("operation_label_2", StringType(), True),
         StructField("operation", StringType(), True),
-        StructField("operation_id", StringType(), True),
         StructField("modelo_urna", StringType(), True),
         StructField("municipio", StringType(), True),
     ])
@@ -131,8 +133,8 @@ if __name__ == "__main__":
             F.max(F.col("datetime")).alias("fim_voto"),
 
             # Metadata
-            F.first(F.col("modelo_urna")).alias("modelo_urna"),
-            F.first(F.col("municipio")).alias("municipio"),
+            F.first(F.col("modelo_urna"), True).alias("modelo_urna"),
+            F.first(F.col("municipio"), True).alias("municipio"),
         )
         .withColumn(
             "tempo_total", 
