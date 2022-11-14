@@ -4,42 +4,29 @@ from pyspark.sql.types import StructType, StructField, StringType, TimestampType
 
 from pyspark.sql.window import Window
 
+import os
+
+
 
 SPARK_MASTER_URL = "spark://spark:7077"
-
-LOG_SCHEMA = StructType([
-
-    StructField("turno", StringType(), True),
-    StructField("uf", StringType(), True),
-    StructField("log_file_name", StringType(), True),
-
+SCHEMA = StructType([
     StructField("datetime", TimestampType(), True),
     StructField("operation_label", StringType(), True),
-    StructField("some_id", StringType(), True),
+    StructField("log_id", StringType(), True),
     StructField("operation_label_2", StringType(), True),
     StructField("operation", StringType(), True),
     StructField("operation_id", StringType(), True),
-
-])
-
-METADATA_SCHEMA = StructType([
-    
-    StructField("turno", StringType(), True),
     StructField("uf", StringType(), True),
-    StructField("zona", StringType(), True),
-    StructField("secao", StringType(), True),
-
+    StructField("turno", StringType(), True),
     StructField("log_file_name", StringType(), True),
-    StructField("modelo_urna", StringType(), True),
-    StructField("municipio", StringType(), True),
-
 ])
+BASE_PATH = '/data/parquet'
 
 spark = (
     SparkSession.builder
     .master(SPARK_MASTER_URL)
     .config("spark.executor.memory", "4g")
-    .appName("Extract votes from logs")
+    .appName("Extract logs metadata")
     .getOrCreate()
 )
 # Reduce number of shuffle partitions
@@ -48,40 +35,78 @@ spark.conf.set("spark.sql.shuffle.partitions", 5)
 spark.sparkContext.setLogLevel("WARN")
 
 
-def read_logs_with_metadata( logs_path, metadata_path ):
+def add_metadata_columns( df ):
+    regex_patterns = {
+        "modelo_urna": "Modelo de Urna: (.*)",
+        "municipio": "Município: ([0-9]+)",
+        "zona": "Zona Eleitoral: ([0-9]+)",
+        "secao": "Seção Eleitoral: ([0-9]+)",
+        "turno": "Turno da UE: ([0-9]+)",
+    }
 
-    # The log file name will serve as the session id
-    df_logs = (
-        spark
-        .read.format("parquet")
-        .schema(LOG_SCHEMA)
-        .load(logs_path)
-    )
+    filter_patterns = {
+        "modelo_urna": "Modelo de Urna",
+        "municipio": "Município",
+        "zona": "Zona",
+        "secao": "Seção Eleitoral",
+        "turno": "Turno",
+    }
 
-    df_metadata = (
-        spark
-        .read.format("parquet")
-        .schema(METADATA_SCHEMA)
-        .load(metadata_path)
-    )
-
-    # Join the logs with the metadata
-    # on turno, uf, log_file_name
-
-    df_full_logs = (
-        df_logs
-        .join(
-            df_metadata,
-            on=[
-                "turno", "uf", "log_file_name"
-            ],
-            how='left'
+    # Add a column for each metadata
+    for metadata, pattern in regex_patterns.items():
+        df = df.withColumn(
+            metadata,
+            # Try to extract the metadata from the operation column
+            # return null if the pattern is not found
+            F.when(
+                F.col("operation").contains(filter_patterns[metadata]),
+                F.regexp_extract(F.col("operation"), pattern, 1)
+            ).otherwise( F.lit(None) )
         )
+
+    # Propagate the metadata to the next rows
+    for metadata in regex_patterns.keys():
+        df = df.withColumn(
+            metadata+"_prop",
+            F.last(F.col(metadata),True).over(
+                Window\
+                    .partitionBy("uf")\
+                    .orderBy("datetime")
+            )
+        )
+
+    # Rename and drop columns
+    for metadata in regex_patterns.keys():
+        df = df.drop(metadata).withColumnRenamed(
+            metadata+"_prop",
+            metadata
+        )
+
+    # Filter where the metadata is not null
+    for metadata in regex_patterns.keys():
+        df = df.filter(F.col(metadata).isNotNull())
+
+    return df
+
+def remove_unnecessary_columns( df ):
+    return df.drop(
+        "operation_label",
+        "log_id",
+        "operation_label_2",
+        "operation_id",
+        "log_file_name"
     )
 
-    return df_full_logs
 
-if __name__ == "__main__":
+def isolate_votes(df):
+    """Isolate the votes from the logs
+
+    Args:
+        df (Spark DataFrame): DataFrame with the logs
+
+    Returns:
+        Spark DataFrame: DataFrame with the votes
+    """
 
     OPERATIONS = [
         'Aguardando digitação do título',
@@ -97,15 +122,10 @@ if __name__ == "__main__":
         'Solicitação de dado pessoal do eleitor para habilitação manual'
     ]
     MARKER_OPERATION = OPERATIONS[0]
-    MINIMAL_OPERATION_COUNT = 4
 
-    BASE_LOGS_PATH = '/data/parquet/*'
-    METADATA_PATH = '/data/session_metadata/'
-    df_full_logs = read_logs_with_metadata(BASE_LOGS_PATH, METADATA_PATH)
-
-    # Assign a unique id to each vote in a session
-    df_full_logs = (
-        df_full_logs
+    # Assign a unique id to each possible vote in a session
+    df = (
+        df
         .filter(
             F.col("operation").isin(OPERATIONS)
         )
@@ -124,32 +144,66 @@ if __name__ == "__main__":
                 .orderBy("datetime")
             )
         )
+    )
+
+
+    # Some rules to helping filter out invalid votes
+    # and remove processing errors
+
+    # 1. Make sure that each vote
+    #    has exactly one operation of 'O voto do eleitor foi computado'
+    df = (
+        df
         .withColumn(
-            "number_of_operations_in_vote",
-            F.count("operation").over(
+            "in_voto_computado",
+            F.when(
+                F.col("operation") == 'O voto do eleitor foi computado',
+                F.lit(1)
+            ).otherwise(F.lit(0))
+        )
+        .withColumn(
+            "vote_count",
+            F.sum("in_voto_computado").over(
                 Window
                 .partitionBy("turno", "uf", "zona", "secao", "vote_local_id")
             )
         )
         .filter(
-            F.col("number_of_operations_in_vote") >= MINIMAL_OPERATION_COUNT
+            F.col("vote_count") == 1
         )
     )
 
-    # Remove columns that are not needed
-    df_full_logs = (
-        df_full_logs
-        .drop("maker")
-        .drop("number_of_operations_in_vote")
-        .drop("log_file_name")
+
+    # Remove columns that are not necessary anymore
+    df = df.drop(
+        "in_voto_computado",
+        "vote_count",
+        "maker"
     )
 
+    return df
 
-    # Save the votes
-    df_full_logs\
-        .write.format("parquet")\
+if __name__ == "__main__":
+
+    df_logs = spark\
+        .read.format("parquet")\
+        .option("encoding", "ISO-8859-1")\
+        .schema(SCHEMA)\
+        .load(f"{BASE_PATH}/*")\
+        # .limit(1000)
+
+    df_logs = add_metadata_columns(df_logs)
+    df_logs = isolate_votes(df_logs)
+    df_logs = remove_unnecessary_columns(df_logs)
+
+    # df_logs.show(1000, False)
+
+    # Save the result
+    df_logs\
+        .write\
+        .format("parquet")\
+        .partitionBy("turno", "uf", "secao")\
         .mode("overwrite")\
-        .partitionBy("turno", "uf", "zona")\
-        .save("/data/votes/")
+        .save(f"/data/votes/")
 
 

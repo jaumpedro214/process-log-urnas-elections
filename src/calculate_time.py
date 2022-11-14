@@ -179,7 +179,7 @@ if __name__ == "__main__":
 
     )
 
-    df_votos.show(25, True)
+    # df_votos.show(25, True)
     df_votos\
         .write.format("parquet")\
         .mode("overwrite")\
