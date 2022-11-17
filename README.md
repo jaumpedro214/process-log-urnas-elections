@@ -1,10 +1,10 @@
-# Process Log Urnas 
+# Processamento do Log das Urnas 
 
 Este repositório contém scripts pySpark (Python + Spark) para processamento dos logs das urnas eletrônicas.
 Extrai informações sobre o tempo de votação, tempo de habilitação, número de tentativas de identificação biométrica, juntamente a dados sobre a seção, uf, zona e outros dados cadastrais de cada voto computado.
 
 ## Os dados
-Os logs de urna podem ser baixados diretamente no site de dados abertos TSE.
+Os logs de urna podem ser baixados diretamente no [site de dados abertos TSE](https://dadosabertos.tse.jus.br/dataset/resultados-2022-arquivos-transmitidos-para-totalizacao).
 Este repositório contém scripts python que fazem o download e extração automática dos logs.
 
 ## O que são os logs da Urna eletrônica?
@@ -26,7 +26,7 @@ Caso queira instalar o ambiente manualmente em máquina local -
 Requisitos:
 - Python 3.8+
 - Biblioteca pyspark 
-- Apache Spark 3.3.0
+- [Apache Spark](https://spark.apache.org/) 3.3.0
 
 (Recomendado) O Arquivo docker-compose.yaml contém a configuração necessária para executar o projeto usando docker.
 Requisitos:
