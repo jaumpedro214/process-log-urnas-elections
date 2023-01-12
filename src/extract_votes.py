@@ -1,6 +1,7 @@
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
-from pyspark.sql.types import StructType, StructField, StringType, TimestampType
+from pyspark.sql.types import (
+    StructType, StructField, StringType, TimestampType)
 
 from pyspark.sql.window import Window
 
@@ -20,13 +21,14 @@ spark.conf.set("spark.sql.shuffle.partitions", 5)
 spark.sparkContext.setLogLevel("WARN")
 
 
-def remove_unnecessary_columns( df ):
+def remove_unnecessary_columns(df):
     return df.drop(
         "operation_label",
         "log_id",
         "operation_label_2",
         "operation_id",
     )
+
 
 def isolate_votes(df):
     """
@@ -78,7 +80,6 @@ def isolate_votes(df):
         )
     )
 
-
     # Some rules to helping filter out invalid votes
     # and remove processing errors
 
@@ -114,6 +115,7 @@ def isolate_votes(df):
 
     return df
 
+
 def add_metadata(df):
 
     # Filter only the metadata operations
@@ -142,9 +144,8 @@ def add_metadata(df):
             F.when(
                 F.col("operation").contains(filter_patterns[metadata]),
                 F.regexp_extract(F.col("operation"), pattern, 1)
-            ).otherwise( F.lit(None) )
+            ).otherwise(F.lit(None))
         )
-
 
     # Propagate the metadata to the votes
     for metadata in regex_patterns.keys():
@@ -156,8 +157,9 @@ def add_metadata(df):
                 .orderBy("datetime")
             )
         )
-    
+
     return df
+
 
 if __name__ == "__main__":
 
@@ -180,7 +182,7 @@ if __name__ == "__main__":
         .load(f"{BASE_PATH}/*")\
         # .limit(100000)
 
-    df_logs = df_logs.filter( F.col('operation_label_2').isin(['VOTA', 'GAP']) )
+    df_logs = df_logs.filter(F.col('operation_label_2').isin(['VOTA', 'GAP']))
 
     df_logs = add_metadata(df_logs)
     df_logs = isolate_votes(df_logs)
@@ -194,7 +196,4 @@ if __name__ == "__main__":
         .format("parquet")\
         .partitionBy("turno", "uf", "zona")\
         .mode("overwrite")\
-        .save(f"/data/votes/")
-
-
-
+        .save("/data/votes/")

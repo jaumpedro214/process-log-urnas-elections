@@ -2,7 +2,7 @@ from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 from pyspark.sql.types import (
     StructType, StructField, StringType, TimestampType, LongType,
-    ByteType, ShortType, IntegerType, BooleanType
+    ByteType, IntegerType, BooleanType
 )
 from pyspark.sql.window import Window
 
@@ -21,6 +21,7 @@ spark.conf.set("spark.sql.shuffle.partitions", 5)
 # Reduce log level
 spark.sparkContext.setLogLevel("WARN")
 
+
 def extract_delta_time(df, time_col, partition_cols):
     """
     Create a column with the time difference between the current row and the previous one.
@@ -31,11 +32,12 @@ def extract_delta_time(df, time_col, partition_cols):
     return (
         df
         .withColumn(
-            "delta_time", 
+            "delta_time",
             F.col(time_col).cast("long")
             - F.lag(time_col).over(time_window).cast("long")
         )
     )
+
 
 def add_operation_type_label(df):
     """Add a column with a label for each operation type
@@ -48,11 +50,11 @@ def add_operation_type_label(df):
     """
 
     OPERATIONS = [
-        ('DIGITACAO',[
+        ('DIGITACAO', [
             'Aguardando digitação do título',
             'Título digitado pelo mesário',
         ]),
-        ('BIOMETRIA',[
+        ('BIOMETRIA', [
             'Solicita digital. Tentativa [1] de [4]',
             'Solicita digital. Tentativa [2] de [4]',
             'Solicita digital. Tentativa [3] de [4]',
@@ -60,13 +62,13 @@ def add_operation_type_label(df):
             'Solicitação de dado pessoal do eleitor para habilitação manual',
             'Eleitor foi habilitado',
         ]),
-        ('VOTO',[
+        ('VOTO', [
             'O voto do eleitor foi computado',
         ])
     ]
 
     # Create a when condition for each operation
-    
+
     # IF operation in list1 THEN label1
     # IF operation in list2 THEN label2
     # ...
@@ -85,6 +87,7 @@ def add_operation_type_label(df):
         df
         .withColumn("operation_type", when_clause)
     )
+
 
 if __name__ == "__main__":
 
@@ -107,16 +110,19 @@ if __name__ == "__main__":
         .schema(SCHEMA)\
         .load(BASE_URL)\
 
-    df_votos = extract_delta_time(df_votos, "datetime", ["turno", "uf", "zona", "secao", "vote_local_id"])
+    df_votos = extract_delta_time(
+        df_votos, "datetime", 
+        ["turno", "uf", "zona", "secao", "vote_local_id"]
+    )
     df_votos = add_operation_type_label(df_votos)
 
     OPERATIONS_TYPES = ['DIGITACAO', 'BIOMETRIA', 'VOTO']
     BIOMETRIA_TENTATIVAS = [
-            'Solicita digital. Tentativa [1] de [4]',
-            'Solicita digital. Tentativa [2] de [4]',
-            'Solicita digital. Tentativa [3] de [4]',
-            'Solicita digital. Tentativa [4] de [4]',
-            'Solicitação de dado pessoal do eleitor para habilitação manual'
+        'Solicita digital. Tentativa [1] de [4]',
+        'Solicita digital. Tentativa [2] de [4]',
+        'Solicita digital. Tentativa [3] de [4]',
+        'Solicita digital. Tentativa [4] de [4]',
+        'Solicitação de dado pessoal do eleitor para habilitação manual'
     ]
 
     df_votos = (
@@ -124,24 +130,26 @@ if __name__ == "__main__":
         .groupBy("turno", "uf", "zona", "secao", "vote_local_id")
         .agg(
             # Metrics
-            ## Number of operations in BIOMETRIA
+            # Number of operations in BIOMETRIA
             F.count(
-                F.when(F.col("operation").like("Solicita%"),1)
+                F.when(F.col("operation").like("Solicita%"), 1)
             ).alias('tentativas_biometria'),
 
-            ## Success biometria
+            # Success biometria
             F.min(
                 F.when(
-                    F.col("operation")=="Solicitação de dado pessoal do eleitor para habilitação manual",0
+                    F.col(
+                        "operation") == "Solicitação de dado pessoal do eleitor para habilitação manual", 0
                 ).otherwise(1)
             ).alias('sucesso_biometria'),
 
-            ## Sum delta time for each operation type
-            *[ 
+            # Sum delta time for each operation type
+            *[
                 F.sum(
-                    F.when(F.col("operation_type") == operation_type, F.col("delta_time"))
+                    F.when(F.col("operation_type") ==
+                           operation_type, F.col("delta_time"))
                 ).alias(f"tempo_{operation_type.lower()}")
-                for operation_type in OPERATIONS_TYPES 
+                for operation_type in OPERATIONS_TYPES
             ],
 
             # Start and end time
@@ -154,12 +162,14 @@ if __name__ == "__main__":
         )
         # make sucesso_biometria NULL if there is no biometria
         .withColumn(
-            "sucesso_biometria", 
-            F.when(F.col("tentativas_biometria") == 0, None).otherwise(F.col("sucesso_biometria"))
+            "sucesso_biometria",
+            F.when(F.col("tentativas_biometria") == 0,
+                   None).otherwise(F.col("sucesso_biometria"))
         )
         .withColumn(
-            "tempo_total", 
-            F.col("tempo_digitacao") + F.col("tempo_biometria") + F.col("tempo_voto")
+            "tempo_total",
+            F.col("tempo_digitacao") + \
+            F.col("tempo_biometria") + F.col("tempo_voto")
         )
     )
 
@@ -183,21 +193,22 @@ if __name__ == "__main__":
         .withColumnRenamed("tempo_voto", "TEMPO_VOTO")
         .withColumnRenamed("tempo_total", "TEMPO_TOTAL")
         # Change types
-        ## Turno to ByteType (smallint)
+        # Turno to ByteType (smallint)
         .withColumn("NR_TURNO", F.col("NR_TURNO").cast(ByteType()))
-        ## sucesso_biometria to boolean
+        # sucesso_biometria to boolean
         .withColumn("IND_SUCESSO_BIOMETRIA", F.col("IND_SUCESSO_BIOMETRIA").cast(BooleanType()))
-        ## tempo_* to IntegerType (int)
+        # tempo_* to IntegerType (int)
         .withColumn("TEMPO_DIGITACAO", F.col("TEMPO_DIGITACAO").cast(IntegerType()))
         .withColumn("TEMPO_BIOMETRIA", F.col("TEMPO_BIOMETRIA").cast(IntegerType()))
         .withColumn("TEMPO_VOTO",      F.col("TEMPO_VOTO").cast(IntegerType()))
         .withColumn("TEMPO_TOTAL",     F.col("TEMPO_TOTAL").cast(IntegerType()))
-
     )
 
     # df_votos.show(25, True)
-    df_votos\
-        .write.format("parquet")\
-        .mode("overwrite")\
-        .partitionBy("NR_TURNO", "SG_UF", "NR_ZONA")\
+    (
+        df_votos
+        .write.format("parquet")
+        .mode("overwrite")
+        # .partitionBy("NR_TURNO", "SG_UF", "NR_ZONA")
         .save("/data/votos_estatisticas/")
+    )

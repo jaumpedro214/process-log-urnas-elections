@@ -1,6 +1,8 @@
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
-from pyspark.sql.types import StructType, StructField, StringType, TimestampType
+from pyspark.sql.types import (
+    StructType, StructField, StringType, TimestampType
+)
 import os
 
 SPARK_MASTER_URL = "spark://spark:7077"
@@ -26,10 +28,11 @@ spark.conf.set("spark.sql.shuffle.partitions", 5)
 # Reduce log level
 spark.sparkContext.setLogLevel("WARN")
 
-def process_logs_from_dir( directory ):
+
+def process_logs_from_dir(directory):
     """
     Process all logs from a directory
-    
+
     Parameters
     ----------
     dir : str
@@ -48,7 +51,7 @@ def process_logs_from_dir( directory ):
         .option("inferSchema", "false")
         .option("timestampFormat", "dd/MM/yyyy HH:mm:ss")
         .option("encoding", "ISO-8859-1")
-        .csv( f'{directory}/*.csv' )
+        .csv(f'{directory}/*.csv')
     )
 
     # Add UF and Turno columns
@@ -64,13 +67,14 @@ def process_logs_from_dir( directory ):
         .option("encoding", "ISO-8859-1")\
         .parquet(f'/data/parquet/{dir_name}')
 
+
 def process_all_logs():
     folders = os.listdir(BASE_PATH)
     for folder in folders:
 
         try:
             print(f'\nProcessing {folder}\n')
-            process_logs_from_dir( f'{BASE_PATH}/{folder}' )
+            process_logs_from_dir(f'{BASE_PATH}/{folder}')
         except Exception as ex:
             print(f'Error processing {folder}: {ex}')
 

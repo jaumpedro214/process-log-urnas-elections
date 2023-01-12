@@ -52,6 +52,7 @@ def download_file():
         print(f'{turnos_uf_queue.qsize()} downloads remaining')
         download_file()
 
+    turnos_uf_queue.task_done()
     return
 
 
