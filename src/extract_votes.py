@@ -55,14 +55,19 @@ def isolate_votes(df):
         'Solicita digital. Tentativa [4] de [4]',
         'Solicitação de dado pessoal do eleitor para habilitação manual'
     ]
-    MARKER_OPERATION = OPERATIONS[0]
+    MARKER_OPERATION = OPERATIONS[3]
 
-    # Assign a unique id to each possible vote in a session
+    # Filter only the operations that are related to votes
     df = (
         df
         .filter(
             F.col("operation").isin(OPERATIONS)
         )
+    )
+
+    # Assign a unique id to each possible vote in a session
+    df = (
+        df
         .withColumn(
             "maker",
             F.when(
@@ -78,33 +83,44 @@ def isolate_votes(df):
                 .orderBy("datetime")
             )
         )
+        # Subtract 1 from vote_local_id whete operation == MARKER_OPERATION
+        # This is necessary because the marker operation is the last operation
+        # and we want it to have the same id as the preceeding operations
+        .withColumn(
+            "vote_local_id",
+            F.when(
+                F.col("operation") == MARKER_OPERATION,
+                F.col("vote_local_id") - 1
+            ).otherwise(F.col("vote_local_id"))
+        )
     )
 
-    # Some rules to helping filter out invalid votes
+    # TODO: THIS SHOULD BECAME A TEST
+    # Some rules to helping filter out invalid votes 
     # and remove processing errors
 
     # 1. Make sure that each vote
     #    has exactly one operation of 'O voto do eleitor foi computado'
-    df = (
-        df
-        .withColumn(
-            "in_voto_computado",
-            F.when(
-                F.col("operation") == 'O voto do eleitor foi computado',
-                F.lit(1)
-            ).otherwise(F.lit(0))
-        )
-        .withColumn(
-            "vote_count",
-            F.sum("in_voto_computado").over(
-                Window
-                .partitionBy("turno", "log_file_name", "vote_local_id")
-            )
-        )
-        .filter(
-            F.col("vote_count") == 1
-        )
-    )
+    # df = (
+    #     df
+    #     .withColumn(
+    #         "in_voto_computado",
+    #         F.when(
+    #             F.col("operation") == 'O voto do eleitor foi computado',
+    #             F.lit(1)
+    #         ).otherwise(F.lit(0))
+    #     )
+    #     .withColumn(
+    #         "vote_count",
+    #         F.sum("in_voto_computado").over(
+    #             Window
+    #             .partitionBy("turno", "log_file_name", "vote_local_id")
+    #         )
+    #     )
+    #     .filter(
+    #         F.col("vote_count") == 1
+    #     )
+    # )
 
     # Remove columns that are not necessary anymore
     df = df.drop(
@@ -182,7 +198,9 @@ if __name__ == "__main__":
         .load(f"{BASE_PATH}/*")\
         # .limit(100000)
 
-    df_logs = df_logs.filter(F.col('operation_label_2').isin(['VOTA', 'GAP']))
+    df_logs = df_logs.filter(
+        F.col('operation_label_2').isin(['VOTA', 'GAP'])
+    )
 
     df_logs = add_metadata(df_logs)
     df_logs = isolate_votes(df_logs)

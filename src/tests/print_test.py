@@ -30,10 +30,14 @@ def print_votes():
     )
 
     df = df\
-    .orderBy('log_file_name','datetime')\
-    .filter( F.col('turno').isNull() )\
-    .select( "turno", "uf", "log_file_name", "datetime", "operation", "zona", "secao", "vote_local_id")\
-    .show(500, False)
+        .orderBy('log_file_name', 'datetime')\
+        .filter(F.col('turno').isNull())\
+        .select(
+            "turno", "uf", "log_file_name", "datetime",
+            "operation", "zona", "secao", "vote_local_id"
+        )\
+        .show(500, False)
+
 
 def print_metadata():
     METADATA_PATH = f'/data/metadata'
@@ -44,10 +48,12 @@ def print_metadata():
         .load(METADATA_PATH)
     )
 
-    df = df.filter( F.col('date') == '2022-10-30' )
-    df = df.filter( F.col('log_file_name') == 'file:/data/logs/2_RN/o00407-1621700320079.csv' )
+    df = df.filter(F.col('date') == '2022-10-30')
+    df = df.filter(F.col('log_file_name') ==
+                   'file:/data/logs/2_RN/o00407-1621700320079.csv')
 
     df.show(500, False)
+
 
 def print_votos_estatisticas():
     BASE_PATH = '/data/votos_estatisticas'
@@ -59,18 +65,33 @@ def print_votos_estatisticas():
     )
 
     df\
-    .groupBy('SG_UF', 'NR_TURNO')\
-    .agg( F.count('*').alias('total') )\
-    .show()
+        .groupBy('SG_UF', 'NR_TURNO')\
+        .agg(F.count('*').alias('total'))\
+        .show()
 
     df\
-    .withColumn('date', F.date_format(F.col('DT_INICIO_VOTO'), 'yyyy-MM-dd'))\
-    .groupBy('date')\
-    .agg( F.count('*').alias('total') )\
-    .show()
+        .withColumn('date', F.date_format(F.col('DT_INICIO_VOTO'), 'yyyy-MM-dd'))\
+        .groupBy('date')\
+        .agg(F.count('*').alias('total'))\
+        .show()
 
     # Number of null values in each column
-    df.select([F.count(F.when(F.isnull(c), c)).alias(c) for c in df.columns]).show()
+    df.select([F.count(F.when(F.isnull(c), c)).alias(c)
+              for c in df.columns]).show()
+
+    # Count number NR_TENTATIVAS_BIOMETRIA
+    df\
+        .groupBy('NR_TENTATIVAS_BIOMETRIA')\
+        .agg(F.count('*').alias('total'))\
+        .orderBy('NR_TENTATIVAS_BIOMETRIA')\
+        .show()
+
+    # Count number of IND_SUCESSO_BIOMETRIA
+    df\
+        .groupBy('IND_SUCESSO_BIOMETRIA')\
+        .agg(F.count('*').alias('total'))\
+        .show()
+
 
 if __name__ == "__main__":
 
