@@ -2,39 +2,44 @@ import os
 
 BASE_PATH = './data/logs'
 
-def unzip_log_files( path ):
+
+def unzip_log_files(zip_file):
+
+    # Each ZIP file contains MULTIPLE *.logjez files
+    # Each A.logjez file contains a logd.dat file that is the LOG file
+    # This code extract all A.logjez file and rename its logd.dat to A.csv
+
     # unzip file
-    os.system(f'7z e {path} -o{path[:-4]} *.logjez -r')
+    # extracting only the .logjez files
+    filepath = zip_file[:-4]
+    os.system(f'7z e {zip_file} -o{filepath} *.logjez -r')
 
     # Remove unnecessary files
-    os.system(f'rm {path}') # Zip file
-    # os.system(f'rm {path[:-4]}/*.rdv')
-    # os.system(f'rm {path[:-4]}/*.vscmr')
-    # os.system(f'rm {path[:-4]}/*.imgbu')
-    # os.system(f'rm {path[:-4]}/*.bu')
+    os.system(f'rm {zip_file}')  # Zip file
 
     # list all files in the directory
-    files = os.listdir(path[:-4])
+    files = os.listdir(filepath)
 
-    # Iterate over the list of files
-    # and extract the .logjez files
     for file in files:
+        # extract .logjez files
+        # and rename to .csv
         if file.endswith('.logjez'):
-            # Extract the .logjez file
-            # and rename it to .csv
-            filename=file[:-7]
+            new_filename = file[:-7]
             os.system(
-                f'7z e {path[:-4]}/{file} -y -o{path[:-4]}/{filename} > /dev/null'
+                f'7z e {filepath}/{file} -y -o{filepath}/{new_filename} \
+                > /dev/null'
             )
             os.system(
-                f'mv {path[:-4]}/{filename}/logd.dat {path[:-4]}/{filename}.csv'
+                f'mv \
+                {filepath}/{new_filename}/logd.dat \
+                {filepath}/{new_filename}.csv'
             )
             os.system(
-                f'rm -r {path[:-4]}/{filename}'
+                f'rm -r {filepath}/{new_filename}'
             )
 
-    os.system(f'chmod 777 -R {path[:-4]}')
-    os.system(f'rm {path[:-4]}/*.logjez')
+    os.system(f'chmod 777 -R {filepath}')
+    os.system(f'rm {filepath}/*.logjez')
 
 
 if __name__ == "__main__":
