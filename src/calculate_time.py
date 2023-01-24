@@ -111,7 +111,7 @@ if __name__ == "__main__":
         .load(BASE_URL)\
 
     df_votos = extract_delta_time(
-        df_votos, "datetime", 
+        df_votos, "datetime",
         ["turno", "uf", "zona", "secao", "vote_local_id"]
     )
     df_votos = add_operation_type_label(df_votos)
