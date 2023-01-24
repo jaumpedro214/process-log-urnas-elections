@@ -1,6 +1,5 @@
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
-import os
 
 SPARK_MASTER_URL = "spark://spark:7077"
 spark = (

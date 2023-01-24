@@ -22,6 +22,17 @@ spark.sparkContext.setLogLevel("WARN")
 
 
 def remove_unnecessary_columns(df):
+    """
+    Remove unnecessary columns from the DataFrame.
+
+    Args:
+        df (
+            spark.sql.dataframe.DataFrame
+        ): DataFrame with the logs
+
+    Returns:
+        spark.sql.dataframe.DataFrame: DataFrame with the unnecessary columns removed
+    """
     return df.drop(
         "operation_label",
         "log_id",
@@ -32,14 +43,19 @@ def remove_unnecessary_columns(df):
 
 def isolate_votes(df):
     """
-    Isolate the votes from the logs, assigning a unique ID to each vote.
+    Isolate the votes from the logs, assigning a sequential
+    id to each vote of a session.
+    id = 1 is the first vote of the session, id = 2 is the second vote, etc.
     The id is unique only within the log file.
 
+
     Args:
-        df (Spark DataFrame): DataFrame with the logs
+        df (
+            spark.sql.dataframe.DataFrame
+        ): DataFrame with the logs
 
     Returns:
-        Spark DataFrame: DataFrame with the votes isolated
+        spark.sql.dataframe.DataFrame: DataFrame with the votes isolated
     """
 
     OPERATIONS = [
@@ -96,7 +112,7 @@ def isolate_votes(df):
     )
 
     # TODO: THIS SHOULD BECAME A TEST
-    # Some rules to helping filter out invalid votes 
+    # Some rules to helping filter out invalid votes
     # and remove processing errors
 
     # 1. Make sure that each vote
@@ -133,8 +149,22 @@ def isolate_votes(df):
 
 
 def add_metadata(df):
+    """
+    Add metadata to the votes DataFrame. 
+    The metadata is extracted using regex from the operation column and
+    propagated using the datetime column.
+    The following metadata is added: MODELO_URNA, TURNO, MUNICIPIO, ZONA, SECAO
 
-    # Filter only the metadata operations
+    Args:
+        df (
+        spark.sql.dataframe.DataFrame
+        ): DataFrame with the votes
+
+    Returns:
+        spark.sql.dataframe.DataFrame: DataFrame with the votes and metadata
+    """
+
+    # These are the patterns that will be used to extract the metadata
     regex_patterns = {
         "modelo_urna": "Modelo de Urna: (.*)",
         "municipio": "Município: ([0-9]+)",
@@ -143,6 +173,8 @@ def add_metadata(df):
         "turno": "Turno da UE: ([0-9]+)",
     }
 
+    # Thes are the keywords that will be used to filter the logs
+    # and only extract the metadata from the lines that contain them
     filter_patterns = {
         "modelo_urna": "Modelo de Urna",
         "municipio": "Município",
@@ -163,7 +195,8 @@ def add_metadata(df):
             ).otherwise(F.lit(None))
         )
 
-    # Propagate the metadata to the votes
+    # Fill the null values with the last non-null value
+    # according to the partition (uf, log_file_name) and order (datetime)
     for metadata in regex_patterns.keys():
         df = df.withColumn(
             metadata,
@@ -198,6 +231,7 @@ if __name__ == "__main__":
         .load(f"{BASE_PATH}/*")\
         # .limit(100000)
 
+    # Filter only the operations that are related to votes
     df_logs = df_logs.filter(
         F.col('operation_label_2').isin(['VOTA', 'GAP'])
     )

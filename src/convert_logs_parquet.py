@@ -68,18 +68,18 @@ def process_logs_from_dir(directory):
         .parquet(f'/data/parquet/{dir_name}')
 
 
-def process_all_logs():
-    folders = os.listdir(BASE_PATH)
-    for folder in folders:
+def process_all_logs(base_path):
 
+    folders = os.listdir(base_path)
+    for folder in folders:
         try:
             print(f'\nProcessing {folder}\n')
-            process_logs_from_dir(f'{BASE_PATH}/{folder}')
+            process_logs_from_dir(f'{base_path}/{folder}')
         except Exception as ex:
             print(f'Error processing {folder}: {ex}')
 
 
 if __name__ == "__main__":
-    process_all_logs()
+    process_all_logs(BASE_PATH)
 
 # Run the script
